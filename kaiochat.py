@@ -27,16 +27,19 @@ KAIOChat
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
-div.msg_container{background-color:#DFDFDF;margin-left:4px;margin-right:4px;margin-top:4px;margin-bottom:4px;padding:8px}
+div.msg_container {background-color:#DFDFDF;margin-left:4px;margin-right:4px;margin-top:4px;margin-bottom:4px;padding:8px}
+form.hidden {display:none!important}
+form.show {display:block!important}
 </style>
 </head>
 """
 
 _html_page_script="""
 <script>
+
 var updating=false;
-var send_message_isbusy=false;
-var change_nickname_isbusy=false;
+const tabs=["send_message","profile_settings"];
+const tabs_len=tabs.length;
 
 async function load_messages()
 {
@@ -46,9 +49,6 @@ async function load_messages()
 
 		updating=true;
 
-		//let data = new FormData();
-		//data.append("job","get_messages");
-
 		let response=await fetch("/",
 		{
 			method:"post",
@@ -57,88 +57,118 @@ async function load_messages()
 		});
 		if (response.ok)
 		{
-			console.log("OK!");
-
 			let html_dump=await response.text();
 			if (html_dump.length>0)
 			{
-				console.log("Updated!");
-				console.log(html_dump);
-				document.getElementById("msg_container").innerHTML=html_dump;
+				msg_container=document.getElementById("msg_container")
+				if (msg_container.innerHTML==html_dump)
+				{
+					console.log("\tMessages have not changed");
+				}
+				else
+				{
+					msg_container.innerHTML=html_dump;
+				}
 			}
 		}
 		updating=false;
 	}
 }
 
-async function change_nickname()
+async function post_data(data_job)
 {
-	console.log("Sending message...");
-	payload=document.getElementById("change_nickname").name.value;
-	payload=payload.trim()
-	if (payload.length==0)
+	data_payload=document.getElementById(data_job+"_1").value;
+	data_payload=data_payload.trim()
+	let strlim=0;
+	let wutt=false;
+	if (data_job=="send_message") {strlim=256};
+	if (data_job=="profile_settings") {strlim=64};
+	if (data_payload.length==0) {alert("This cannot be empty")};
+	if (data_payload.length>strlim)
 	{
-		alert("This cannot be empty");
-	}
-	if (payload.length>64)
-	{
+		wutt=true;
 		alert("The name is too long");
 	}
-	if ((!change_nickname_isbusy) && (payload.length>0) && (payload.length<65))
+	if (!wutt)
 	{
-		change_nickname_isbusy=true;
+		the_body="job="+data_job+"&payload="+data_payload
 		let response=await fetch("/",
 		{
 			method:"post",
 			headers:{"Accept":"text/plain","Content-Type":"application/x-www-form-urlencoded"},
-			body:"job=change_nickname&payload="+payload
+			body:the_body
 		});
 		if (response.ok)
 		{
-			let log=await response.text();
-			if (log.length>0)
+			//Send message
+			if (data_job=="send_message")
 			{
-				alert(log);
+				document.getElementById("send_message_1").value="";
+				load_messages();
+			}
+			//Change nickname
+			if (data_job=="profile_settings")
+			{
+				let log=await response.text();
+				if (log.length>0)
+				{
+					alert(log);
+				}
+				else
+				{
+					document.getElementById("nickname").innerHTML=data_payload;
+					document.getElementById("profile_settings_1").value="";
+				}
+			}
+		}
+	}
+}
+
+function is_visible(id)
+{
+	let thing=document.getElementById(id);
+	if ((thing.className.indexOf("hidden")>-1))
+	{
+		return false;
+	}
+	else
+	{
+		return true;
+	}
+}
+
+function show_tab(selected)
+{
+
+	let vvv=is_visible(selected);
+	if (!vvv)
+	{
+		let idx=0;
+		let curr="";
+		while (idx<tabs_len)
+		{
+			curr=tabs[idx];
+			vvv=is_visible(curr);
+			if (curr==selected)
+			{
+				if (!vvv)
+				{
+					//document.getElementById(curr).className.replace("hidden","show");
+					let doc_elem=document.getElementById(curr)
+					doc_elem.className=doc_elem.className.replace("hidden","show");
+				}
 			}
 			else
 			{
-				document.getElementById("nickname").innerHTML=payload;
-				document.getElementById("change_nickname").name.value="";
+				if (vvv)
+				{
+					let doc_elem=document.getElementById(curr)
+					doc_elem.className=doc_elem.className.replace("show","hidden");
+				}
 			}
+			idx=idx+1;
 		}
 	}
-	change_nickname_isbusy=false;
-}
-
-async function send_message()
-{
-	console.log("Sending message...");
-	payload=document.getElementById("send_message").name.value;
-	payload=payload.trim()
-	if (payload.length==0)
-	{
-		alert("This cannot be empty");
-	}
-	if (payload.length>256)
-	{
-		alert("Message is too long")
-	}
-	if ((!send_message_isbusy) && (payload.length>0) && (payload.length<257))
-	{
-		send_message_isbusy=true;
-		let response=await fetch("/",
-		{
-			method:"post",
-			headers:{"Accept":"text/html","Content-Type":"application/x-www-form-urlencoded"},
-			body:"job=send_message&payload="+payload
-		});
-		if (response.ok)
-		{
-			document.getElementById("send_message").name.value="";
-			load_messages();
-		}
-	}
-	send_message_isbusy=false;
 }
 
 window.setInterval(load_messages,1000);
@@ -147,18 +177,30 @@ window.setInterval(load_messages,1000);
 
 _html_page_forms_default="""
 <div>
-<p>Change nickname</p>
-<form id="change_nickname" action="javascript:change_nickname()">
-<input name="name" type="text" value="" autofocus>
-<input type="submit" value="Change">
-</form>
+
+<span>
+<button onclick="javascript:show_tab('send_message')">Messaging</button>
+<button onclick="javascript:show_tab('profile_settings')">Profile</button>
+</span>
+
+<form id="send_message" class="show" action="javascript:post_data('send_message')">
 <p>Send a message</p>
-<form id="send_message" action="javascript:send_message()">
-<input name="name" type="text" value="" autofocus>
-<input type="submit" value="Send">
+<p><label>Message text <input id="send_message_1" type="text" value="" autofocus></label></p>
+<!--
+<p><label>Upload a file <input id="send_message_2" type="file"></label></p>
+-->
+<p><input type="submit" value="Send"></p>
 </form>
-</div>
-<div>
+
+<form id="profile_settings" class="hidden" action="javascript:post_data('profile_settings')">
+<p>Profile Settings</p>
+<p><label>Nickname <input id="profile_settings_1" type="text" value=""></label></p>
+<!--
+<p><label>Picture <input id="profile_settings_2" type="file"></label></p>
+-->
+<p><input type="submit" value="Apply changes">
+</form>
+
 </div>
 """
 
@@ -167,7 +209,6 @@ _html_page_messages="""
 
 </div>
 """
-
 
 _admin_address="::1"
 
@@ -277,7 +318,7 @@ async def handler_post(request):
 			message_unit=Message(detected_client,message_text)
 			_messages.append(message_unit)
 
-		elif job=="change_nickname" and post_data.get("payload"):
+		elif job=="profile_settings" and post_data.get("payload"):
 			nickname_new=post_data.get("payload")
 			exists=False
 			for uid in _users:
