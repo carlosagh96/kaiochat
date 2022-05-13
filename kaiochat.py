@@ -91,7 +91,7 @@ async function post_data(data_job)
 	}
 	if (!wutt)
 	{
-		the_body="job="+data_job+"&payload="+data_payload
+		the_body="job="+data_job+"&payload="+data_payload;
 		let response=await fetch("/",
 		{
 			method:"post",
@@ -153,8 +153,7 @@ function show_tab(selected)
 			{
 				if (!vvv)
 				{
-					//document.getElementById(curr).className.replace("hidden","show");
-					let doc_elem=document.getElementById(curr)
+					let doc_elem=document.getElementById(curr);
 					doc_elem.className=doc_elem.className.replace("hidden","show");
 				}
 			}
@@ -162,7 +161,7 @@ function show_tab(selected)
 			{
 				if (vvv)
 				{
-					let doc_elem=document.getElementById(curr)
+					let doc_elem=document.getElementById(curr);
 					doc_elem.className=doc_elem.className.replace("show","hidden");
 				}
 			}
