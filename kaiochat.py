@@ -4,12 +4,15 @@
 # KAIOChat: Karurosagu's Asynchronous I/O Chat
 ################################################################################
 
+import aiohttp
 import asyncio
 import os
 import sys
 import yarl
 import time
+
 from aiohttp import web
+from hashlib import md5
 
 try:
 	the_port_raw=sys.argv[1]
@@ -25,11 +28,14 @@ _html_page_main="""
 KAIOChat
 </title>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta content="text/html;charset=utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-div.msg_container {background-color:#DFDFDF;margin-left:4px;margin-right:4px;margin-top:4px;margin-bottom:4px;padding:8px}
-form.hidden {display:none!important}
-form.show {display:block!important}
+#msg_container,#reply_to {padding-top:8px}
+div.message {background-color:#DFDFDF;margin-left:4px;margin-right:4px;margin-top:4px;margin-bottom:4px;padding:8px}
+div.tools {padding-bottom:8px;padding-top:8px}
+div.hidden {display:none!important}
+div.show {display:block!important}
 </style>
 </head>
 """
@@ -37,41 +43,58 @@ form.show {display:block!important}
 _html_page_script="""
 <script>
 
+var sock=new WebSocket("WEBSOCKETS_URL");
+
 var updating=false;
+var msg_latest="";
+var msg_target="";
+
 const tabs=["send_message","profile_settings"];
 const tabs_len=tabs.length;
 
-async function load_messages()
+function chat_update(full)
 {
 	if (!updating)
 	{
-		console.log("Updating messages...");
-
 		updating=true;
+		let the_data="update"
+		if (msg_latest.length>0)
+		{
+			the_data=the_data+"&msg_latest="+msg_latest
+		}
+		sock.send(the_data);
+		updating=false;
+	}
+}
 
-		let response=await fetch("/",
+function from_socket(event)
+{
+
+	let empty=true;
+	if (msg_latest.length>0)
+	{
+		empty=false;
+	}
+	let html_dump=event.data.slice(33);
+	msg_latest=event.data.slice(0,32);
+	if (html_dump.length>0)
+	{
+		msg_container=document.getElementById("msg_container")
+		if (msg_container.innerHTML==html_dump)
 		{
-			method:"post",
-			headers:{"Accept":"text/html","Content-Type":"application/x-www-form-urlencoded"},
-			body:"job=get_messages"
-		});
-		if (response.ok)
+			console.log("\tMessages have not changed");
+		}
+		else
 		{
-			let html_dump=await response.text();
-			if (html_dump.length>0)
+			if (empty)
 			{
-				msg_container=document.getElementById("msg_container")
-				if (msg_container.innerHTML==html_dump)
-				{
-					console.log("\tMessages have not changed");
-				}
-				else
-				{
-					msg_container.innerHTML=html_dump;
-				}
+				msg_container.innerHTML=html_dump;
+			}
+			else
+			{
+				msg_container.innerHTML=html_dump+msg_container.innerHTML;
 			}
 		}
-		updating=false;
 	}
 }
 
@@ -82,7 +105,7 @@ async function post_data(data_job)
 	let strlim=0;
 	let wutt=false;
 	if (data_job=="send_message") {strlim=256};
-	if (data_job=="profile_settings") {strlim=64};
+	if (data_job=="profile_settings") {strlim=32};
 	if (data_payload.length==0) {alert("This cannot be empty")};
 	if (data_payload.length>strlim)
 	{
@@ -91,7 +114,21 @@ async function post_data(data_job)
 	}
 	if (!wutt)
 	{
-		the_body="job="+data_job+"&payload="+data_payload;
+		let the_body="";
+		if (data_job=="send_message")
+		{
+			the_body="job="+data_job;
+			if (msg_target.length>0)
+			{
+				the_body=the_body+"&msg_target="+msg_target;
+			}
+			the_body=the_body+"&payload="+data_payload;
+			select_message_null();
+		}
+		if (data_job=="profile_settings")
+		{
+			the_body="job="+data_job+"&payload="+data_payload;
+		}
 		let response=await fetch("/",
 		{
 			method:"post",
@@ -100,13 +137,11 @@ async function post_data(data_job)
 		});
 		if (response.ok)
 		{
-			//Send message
 			if (data_job=="send_message")
 			{
 				document.getElementById("send_message_1").value="";
-				load_messages();
+				chat_update();
 			}
-			//Change nickname
 			if (data_job=="profile_settings")
 			{
 				let log=await response.text();
@@ -116,11 +151,48 @@ async function post_data(data_job)
 				}
 				else
 				{
+					let oldname=document.getElementById("nickname").innerHTML;
 					document.getElementById("nickname").innerHTML=data_payload;
 					document.getElementById("profile_settings_1").value="";
+					let messages_all=document.getElementsByClassName("message");
+					let messages_num=messages_all.length;
+					let idx=0;
+					while (idx<messages_num)
+					{
+						curr_msg=messages_all[idx];
+						tag_h3=curr_msg.getElementsByTagName("h3")[0];
+						if (tag_h3.innerHTML==oldname)
+						{
+							tag_h3.innerHTML=data_payload;
+						}
+						idx=idx+1;
+					}
 				}
 			}
 		}
+	}
+}
+
+function select_message_null()
+{
+	if (msg_target.length>0)
+	{
+		msg_target="";
+		document.getElementById("shipment").innerHTML="Send message";
+	}
+}
+
+function select_message_reply(given_id)
+{
+	console.log(msg_target+"/"+given_id);
+	if (msg_target==given_id)
+	{
+		select_message_null();
+	}
+	else
+	{
+		msg_target=given_id;
+		document.getElementById("shipment").innerHTML="Answer <a href='#"+given_id+"'>this message</a> <button onclick='javascript:select_message_null()'>Cancel</button>";
 	}
 }
 
@@ -139,7 +211,6 @@ function is_visible(id)
 
 function show_tab(selected)
 {
-
 	let vvv=is_visible(selected);
 	if (!vvv)
 	{
@@ -170,43 +241,60 @@ function show_tab(selected)
 	}
 }
 
-window.setInterval(load_messages,1000);
+sock.addEventListener("message",from_socket);
+window.setInterval(chat_update,1000);
 </script>
 """
 
-_html_page_forms_default="""
-<div>
+_html_page_default="""
+<div class="tools">
+<a href="/"><button>FORCE RELOAD</button></a>
+</div>
 
-<span>
+<div class="tools">
 <button onclick="javascript:show_tab('send_message')">Messaging</button>
 <button onclick="javascript:show_tab('profile_settings')">Profile</button>
-</span>
-
-<form id="send_message" class="show" action="javascript:post_data('send_message')">
-<p>Send a message</p>
-<p><label>Message text <input id="send_message_1" type="text" value="" autofocus></label></p>
-<!--
-<p><label>Upload a file <input id="send_message_2" type="file"></label></p>
--->
-<p><input type="submit" value="Send"></p>
-</form>
-
-<form id="profile_settings" class="hidden" action="javascript:post_data('profile_settings')">
-<p>Profile Settings</p>
-<p><label>Nickname <input id="profile_settings_1" type="text" value=""></label></p>
-<!--
-<p><label>Picture <input id="profile_settings_2" type="file"></label></p>
--->
-<p><input type="submit" value="Apply changes">
-</form>
-
 </div>
-"""
 
-_html_page_messages="""
+<div id="send_message" class="show">
+<p id="shipment">Send a message</p>
+<span>
+<input id="send_message_1" placeholder="Write a message here" type="text" value="" autofocus>
+<button onclick="javascript:post_data('send_message')">Send</button>
+<!--<button onclick="javascript:send_data('send_message')">Send</button>-->
+</span>
+</div>
+
+<div id="profile_settings" class="hidden">
+<p>Profile Settings</p>
+<span>
+<input id="profile_settings_1" placeholder="New nickname" type="text" value="">
+<button onclick="javascript:post_data('profile_settings')">Change</button>
+</span>
+</div>
+
 <div id="msg_container">
 
 </div>
+
+<!--
+<form id="send_message" class="show" action="javascript:post_data('send_message')">
+<p>Send a message</p>
+<p><label>Message text <input id="send_message_1" placeholder="Write a message here" type="text" value="" autofocus></label></p>
+<p><label>Upload a file <input id="send_message_2" type="file"></label></p>
+<p><input type="submit" value="Send"></p>
+<p id="shipment">...</p>
+</form>
+-->
+
+<!--
+<form id="profile_settings" class="hidden" action="javascript:post_data('profile_settings')">
+<p>Profile Settings</p>
+<p><label>Nickname <input id="profile_settings_1" type="text" placeholder="New nickname" value=""></label></p>
+<p><label>Picture <input id="profile_settings_2" type="file"></label></p>
+<p><input type="submit" value="Apply changes">
+</form>
+-->
 """
 
 _admin_address="::1"
@@ -216,6 +304,7 @@ _messages=[]
 
 class User:
 	def __init__(self,uagent):
+		self.wsc=False
 		self.uagent=uagent
 		self.nickname=str(time.strftime("%Y-%m-%d-%H-%M-%S"))+"-"+str(len(_users))
 
@@ -227,20 +316,108 @@ class User:
 	def html_nickname(self):
 		return "<div><h3>Hello, <customtag id=\"nickname\">"+self.nickname+"</customtag></h3></div>\n"
 
-
 class Message:
-	def __init__(self,owner,content):
+	def __init__(self,owner,content,reply):
+		shit=owner+" "+str(time.strftime("%Y-%m-%d-%H-%M-%S"))
+		self.mid=md5(shit.encode()).hexdigest()
 		self.owner=owner
 		self.content=content
+		self.reply=reply
 
 	def display_html(self):
 		user=_users.get(self.owner)
 		nick=user.nickname
-		return "<div class=\"msg_container\"><span><h3>"+nick+"</h3></span><span>"+self.content+"</span></div>"
+
+		om=""
+		the_buttons="<button onclick=\"javascript:select_message_reply('"+self.mid+"')\">SELECT</button> "
+		if self.reply:
+			for msg in _messages:
+				if msg.mid==self.reply:
+					us=_users.get(msg.owner)
+					nm=us.nickname
+					txt=msg.content
+					if len(txt)>64:
+						txt=txt[0:64]+"..."
+
+					om="<p><strong>"+nm+"</strong> <i>"+txt+"</i></p>"
+					break
+
+			the_buttons=the_buttons+"<a href=#"+self.reply+"><button float=right>Go to OM</button></a>"
+
+		return "<div class=\"message\" id=\""+self.mid+"\" class=\"msg_container\"><h3>"+nick+"</h3>"+om+"<p>"+self.content+"</p><p>"+the_buttons+"</p></div>\n"
 
 #################################################################################
 # Handlers and app construction
 #################################################################################
+
+# WebSockets requests
+async def handler_ws(request):
+	print("WS Request by",request.remote)
+	print("\t→ Browser/Client =",request.headers.get("User-Agent"))
+	print("\t→ request.host =",request.host)
+	print("\t→ request.url =",request.url)
+	print("\t→ asks for request.rel_url =",request.rel_url)
+
+	detected_client=request.remote
+	detected_uagent=request.headers.get("User-Agent")
+	the_user=_users.get(detected_client)
+
+	if not the_user:
+		print("\tUNKNOWN USER")
+		return None
+
+	if the_user.wsc:
+		print("\tUSER ALREADY CONNECTED")
+		return None
+
+	ws=web.WebSocketResponse()
+	await ws.prepare(request)
+	async for msg in ws:
+		if msg.type == aiohttp.WSMsgType.TEXT:
+			if msg.data=="close":
+				print("\t\tWS Connection closed")
+				await ws.close()
+
+			else:
+				y=yarl.URL("/?"+msg.data)
+
+				response=""
+				message=None
+
+				post_data=y.query
+				# data_room=post_data.get("room")
+				msg_latest=post_data.get("msg_latest")
+				if msg_latest:
+					response=""
+					add_next=False
+					for message in _messages:
+						if not add_next:
+							if msg_latest==message.mid:
+								add_next=True
+						else:
+							print(msg_latest,message.mid)
+							print(message.display_html())
+							response=message.display_html()+response
+
+				if not msg_latest:
+					response=""
+					for message in _messages:
+						response=message.display_html()+response
+
+				if message and len(response)>0:
+					response=message.mid+" "+response
+
+				if len(response)>0:
+					print("RESPONSE\n"+response)
+					await ws.send_str(response)
+
+		elif msg.type == aiohttp.WSMsgType.ERROR:
+			print("\t\tWS Connection closed with exception",ws.exception())
+
+	the_user.wsc=False
+	print("\tUser is no longer connected")
+
+	return ws
 
 # GET requests
 async def handler_get(request):
@@ -249,7 +426,8 @@ async def handler_get(request):
 	print("\t→ request.host =",request.host)
 	print("\t→ request.url =",request.url)
 	print("\t→ asks for request.rel_url =",request.rel_url)
-	#yurl=yarl.URL(request.url)
+
+	yurl=yarl.URL(request.url)
 	#print(yurl.query.keys)
 
 	#response_text=_default_response
@@ -271,9 +449,19 @@ async def handler_get(request):
 		_users.update({detected_client:the_user})
 		print("\t\t→ Added new user:",detected_client,"using",detected_uagent)
 
-	the_user.debug_print(2)
+	# WEBSOCKETS URL
+	ws_url=str(yurl)
+	if yurl.scheme=="http":
+		ws_url=ws_url.replace("http://","ws://")
+	else:
+		ws_url=ws_url.replace("https://","wss://")
 
-	response_text=_html_page_main+_html_page_script+the_user.html_nickname()+_html_page_forms_default+_html_page_messages
+	if not ws_url.endswith("/"):
+		ws_url=ws_url+"/"
+	ws_url=ws_url+"ws"
+	html_scr=_html_page_script.replace("WEBSOCKETS_URL",ws_url)
+
+	response_text=_html_page_main+html_scr+the_user.html_nickname()+_html_page_default
 
 	print("End of GET request by",request.remote)
 	return web.Response(body=response_text,content_type=response_mime,charset="utf-8",status=response_status)
@@ -314,7 +502,8 @@ async def handler_post(request):
 	if not wutt:
 		if job=="send_message" and post_data.get("payload"):
 			message_text=post_data.get("payload")
-			message_unit=Message(detected_client,message_text)
+			msg_target=post_data.get("msg_target")
+			message_unit=Message(detected_client,message_text,reply=msg_target)
 			_messages.append(message_unit)
 
 		elif job=="profile_settings" and post_data.get("payload"):
@@ -336,8 +525,20 @@ async def handler_post(request):
 				the_user.nickname=nickname_new
 
 		elif job=="get_messages":
-			for message in _messages:
-				response_text=message.display_html()+response_text
+			msg_latest=post_data.get("msg_latest")
+
+			if msg_latest:
+				add_next=False
+				for message in _messages:
+					if not add_next:
+						if msg_latest==message.mid:
+							add_next=True
+					else:
+						response_text=message.display_html()+response_text
+
+			if not msg_latest:
+				for message in _messages:
+					response_text=message.display_html()+response_text
 
 		else:
 			wutt=True
@@ -352,7 +553,7 @@ async def handler_post(request):
 # Build the app
 async def build_app():
 	app=web.Application()
-	app.add_routes([web.get("/",handler_get),web.post("/",handler_post)])
+	app.add_routes([web.get("/",handler_get),web.post("/",handler_post),web.get("/ws",handler_ws)])
 	return app
 
 # Run the app
