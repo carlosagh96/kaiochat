@@ -32,10 +32,12 @@ KAIOChat
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 #msg_container,#reply_to {padding-top:8px}
-div.message {background-color:#DFDFDF;margin-left:4px;margin-right:4px;margin-top:4px;margin-bottom:4px;padding:8px}
+div.message {background-color:#DFDFDF;margin-top:8px;margin-bottom:8px;padding:8px}
 div.tools {padding-bottom:8px;padding-top:8px}
 div.hidden {display:none!important}
 div.show {display:block!important}
+p.om {background-color: #CACACC;padding:8px}
+body {margin-left:16px;margin-right:16px}
 </style>
 </head>
 """
@@ -260,7 +262,7 @@ _html_page_default="""
 <p id="shipment">Send a message</p>
 <span>
 <input id="send_message_1" placeholder="Write a message here" type="text" value="" autofocus>
-<button onclick="javascript:post_data('send_message')">Send</button>
+<button id="send_message_btn" onclick="javascript:post_data('send_message')">Send</button>
 <!--<button onclick="javascript:send_data('send_message')">Send</button>-->
 </span>
 </div>
@@ -269,7 +271,7 @@ _html_page_default="""
 <p>Profile Settings</p>
 <span>
 <input id="profile_settings_1" placeholder="New nickname" type="text" value="">
-<button onclick="javascript:post_data('profile_settings')">Change</button>
+<button id="profile_settings_btn" onclick="javascript:post_data('profile_settings')">Change</button>
 </span>
 </div>
 
@@ -339,7 +341,7 @@ class Message:
 					if len(txt)>64:
 						txt=txt[0:64]+"..."
 
-					om="<p><strong>"+nm+"</strong> <i>"+txt+"</i></p>"
+					om="<p class=\"om\"><strong>"+nm+"</strong> <i>"+txt+"</i></p>"
 					break
 
 			the_buttons=the_buttons+"<a href=#"+self.reply+"><button float=right>Go to OM</button></a>"
