@@ -306,7 +306,6 @@ _messages=[]
 
 class User:
 	def __init__(self,uagent):
-		self.wsc=False
 		self.uagent=uagent
 		self.nickname=str(time.strftime("%Y-%m-%d-%H-%M-%S"))+"-"+str(len(_users))
 
@@ -368,10 +367,6 @@ async def handler_ws(request):
 		print("\tUNKNOWN USER")
 		return None
 
-	if the_user.wsc:
-		print("\tUSER ALREADY CONNECTED")
-		return None
-
 	ws=web.WebSocketResponse()
 	await ws.prepare(request)
 	async for msg in ws:
@@ -415,9 +410,6 @@ async def handler_ws(request):
 
 		elif msg.type == aiohttp.WSMsgType.ERROR:
 			print("\t\tWS Connection closed with exception",ws.exception())
-
-	the_user.wsc=False
-	print("\tUser is no longer connected")
 
 	return ws
 
