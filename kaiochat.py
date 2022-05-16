@@ -32,7 +32,7 @@ KAIOChat
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 #msg_container,#reply_to {padding-top:8px}
-div.message {background-color:#DFDFDF;margin-top:8px;margin-bottom:8px;padding:8px}
+div.message {background-color:#DFDFDF;margin-top:8px;margin-bottom:8px;padding-left:16px;padding-right:16px;padding-bottom:2px;padding-top:2px}
 div.tools {padding-bottom:8px;padding-top:8px}
 div.hidden {display:none!important}
 div.show {display:block!important}
