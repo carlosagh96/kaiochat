@@ -550,6 +550,8 @@ async def build_app():
 	app.add_routes([web.get("/",handler_get),web.post("/",handler_post),web.get("/ws",handler_ws)])
 	return app
 
+print("KAIOChat v2022-05-16\n\tWritten by カルロサグ\n\tTelegram: https://t.me/CarlosAGH\n")
+
 # Run the app
 this_loop=asyncio.get_event_loop()
 web.run_app(build_app(),port=_the_port)
