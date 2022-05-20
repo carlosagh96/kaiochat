@@ -4,8 +4,6 @@
 # KAIOChat: Karurosagu's Asynchronous I/O Chat
 ################################################################################
 
-# TODO: Change how sessions are made
-
 import aiohttp
 import asyncio
 import os
@@ -15,6 +13,7 @@ import time
 
 from aiohttp import web
 from hashlib import md5
+from pprint import pformat
 
 try:
 	the_port_raw=sys.argv[1]
@@ -43,14 +42,15 @@ div.show {display:block!important}
 p.om {background-color: #CACACC;padding:8px}
 body {margin-left:16px;margin-right:16px}
 
-button {border:none;padding:8px 16px;text-align:center;text-decoration:none;display:inline-block;font-size:16px;cursor:pointer}
+input {border: 2px solid;padding:8px 16px}
 
+button {border:2px solid black;padding:8px 16px;text-align:center;text-decoration:none;display:inline-block;cursor:pointer}
 button {background-color:black;color:white}
-button:hover {background-color:#404040}
-button:active {background-color:gray}
-
+button:hover {background-color:grey;border:2px solid grey}
+button:active {background-color:white;color:black;border:2px solid black}
 button.tab {float:left}
-button.tab_default {background-color:white;color:black}
+button.tab_now {background-color:white;color:black}
+button.tab_now:hover {background-color:white;border:2px solid black}
 
 </style>
 </head>
@@ -200,7 +200,6 @@ function select_message_null()
 
 function select_message_reply(given_id)
 {
-	console.log(msg_target+"/"+given_id);
 	if (msg_target==given_id)
 	{
 		select_message_null();
@@ -243,8 +242,9 @@ function show_tab(selected)
 					let doc_elem1=document.getElementById(curr);
 					let doc_elem2=document.getElementById("tab_"+curr);
 					doc_elem1.className=doc_elem1.className.replace("hidden","show");
-					doc_elem2.style.color="black";
-					doc_elem2.style.backgroundColor="white";
+					doc_elem2.className=doc_elem2.className+" tab_now"
+					//doc_elem2.style.color="black";
+					//doc_elem2.style.backgroundColor="white";
 				}
 			}
 			else
@@ -254,8 +254,9 @@ function show_tab(selected)
 					let doc_elem1=document.getElementById(curr);
 					let doc_elem2=document.getElementById("tab_"+curr);
 					doc_elem1.className=doc_elem1.className.replace("show","hidden");
-					doc_elem2.style.color="white";
-					doc_elem2.style.backgroundColor="black";
+					doc_elem2.className=doc_elem2.className.replace(" tab_now","");
+					//doc_elem2.style.color="white";
+					//doc_elem2.style.backgroundColor="black";
 				}
 			}
 			idx=idx+1;
@@ -270,11 +271,7 @@ window.setInterval(chat_update,1000);
 
 _html_page_default="""
 <div class="tools">
-<a href="/"><button>FORCE RELOAD</button></a>
-</div>
-
-<div class="tools">
-<button id="tab_send_message" class="tab tab_default" onclick="javascript:show_tab('send_message')">Messaging</button>
+<button id="tab_send_message" class="tab tab_now" onclick="javascript:show_tab('send_message')">Messaging</button>
 <button id="tab_profile_settings" class="tab" onclick="javascript:show_tab('profile_settings')">Profile</button>
 </div>
 
@@ -299,15 +296,24 @@ _html_page_default="""
 </div>
 """
 
+def time_stamp():
+	return str(time.strftime("%Y-%m-%d-%H-%M-%S"))
+
 _admin_address="::1"
 
 _users={}
 _messages=[]
 
 class User:
-	def __init__(self,uagent):
+	def __init__(self,uagent,ip):
 		self.uagent=uagent
-		self.nickname=str(time.strftime("%Y-%m-%d-%H-%M-%S"))+"-"+str(len(_users))
+		self.nickname="User "+time_stamp()+"-"+str(len(_users))
+
+		if ip==_admin_address:
+			self.is_admin=True
+		else:
+			self.is_admin=False
+
 
 	def debug_print(self,tabs=0):
 		space="\t"*tabs
@@ -319,7 +325,7 @@ class User:
 
 class Message:
 	def __init__(self,owner,content,reply):
-		shit=owner+" "+str(time.strftime("%Y-%m-%d-%H-%M-%S"))
+		shit=owner+" "+time_stamp()
 		self.mid=md5(shit.encode()).hexdigest()
 		self.owner=owner
 		self.content=content
@@ -330,7 +336,7 @@ class Message:
 		nick=user.nickname
 
 		om=""
-		the_buttons="<button onclick=\"javascript:select_message_reply('"+self.mid+"')\">SELECT</button> "
+		the_buttons="<button onclick=\"javascript:select_message_reply('"+self.mid+"')\">Select</button> "
 		if self.reply:
 			for msg in _messages:
 				if msg.mid==self.reply:
@@ -355,17 +361,21 @@ class Message:
 async def handler_ws(request):
 	print("WS Request by",request.remote)
 	print("\t→ Browser/Client =",request.headers.get("User-Agent"))
+	# print("\t→ Token =",request.headers.get("Authorization"))
 	print("\t→ request.host =",request.host)
 	print("\t→ request.url =",request.url)
 	print("\t→ asks for request.rel_url =",request.rel_url)
 
-	detected_client=request.remote
-	detected_uagent=request.headers.get("User-Agent")
-	the_user=_users.get(detected_client)
+	#token=request.headers.get("Authorization")
+	#if not token:
+	#	print("NO TOKEN?????")
+	#	return None
 
-	if not the_user:
-		print("\tUNKNOWN USER")
-		return None
+	#the_user=_users.get(token)
+
+	#if not the_user:
+	#	print("NO USER?????")
+	#	return None
 
 	ws=web.WebSocketResponse()
 	await ws.prepare(request)
@@ -422,25 +432,28 @@ async def handler_get(request):
 	print("\t→ asks for request.rel_url =",request.rel_url)
 
 	yurl=yarl.URL(request.url)
-	#print(yurl.query.keys)
-
-	#response_text=_default_response
 	response_mime="text/html"
 	response_status=200
 
-	detected_client=request.remote
-	detected_uagent=request.headers.get("User-Agent")
-	the_user=_users.get(detected_client)
+	token=request.cookies.get("KAIOChat_Token")
+	print("\t→ Token =",token)
 
-	if the_user:
-		print("\t\t→",detected_client,"is back again")
-		if not the_user.uagent==detected_uagent:
-			the_user.uagent=detected_uagent
-			print("\t\t",detected_client,"changed the browser/client to",detected_uagent)
+	if token:
+		the_user=_users.get(token)
+	else:
+		the_user=None
 
 	if not the_user:
-		the_user=User(detected_uagent)
-		_users.update({detected_client:the_user})
+
+		detected_uagent=request.headers.get("User-Agent")
+		detected_client=request.remote
+
+		data_involved=detected_uagent+" "+detected_client
+
+		token=md5(data_involved.encode()).hexdigest()
+
+		the_user=User(detected_uagent,detected_client)
+		_users.update({token:the_user})
 		print("\t\t→ Added new user:",detected_client,"using",detected_uagent)
 
 	# WEBSOCKETS URL
@@ -452,13 +465,19 @@ async def handler_get(request):
 
 	if not ws_url.endswith("/"):
 		ws_url=ws_url+"/"
+
 	ws_url=ws_url+"ws"
 	html_scr=_html_page_script.replace("WEBSOCKETS_URL",ws_url)
+
+	# USER TOKEN
+	html_scr=html_scr.replace("USER_TOKEN",token)
 
 	response_text=_html_page_main+html_scr+the_user.html_nickname()+_html_page_default
 
 	print("End of GET request by",request.remote)
-	return web.Response(body=response_text,content_type=response_mime,charset="utf-8",status=response_status)
+	response=web.Response(body=response_text,content_type=response_mime,charset="utf-8",status=response_status)
+	response.set_cookie("KAIOChat_Token",token,samesite="Strict")
+	return response
 
 # POST requests
 async def handler_post(request):
@@ -468,17 +487,20 @@ async def handler_post(request):
 	print("\t→ request.url =",request.url)
 	print("\t→ asks for request.rel_url =",request.rel_url)
 
-	#yurl=yarl.URL(request.url)
-	#print(yurl.query.keys)
-
 	response_text=""
 	response_mime="text/html"
 	response_status=200
 
-	detected_client=request.remote
-
 	wutt=False
-	the_user=_users.get(detected_client)
+
+	token=request.cookies.get("KAIOChat_Token")
+	print("\t→ Token =",token)
+
+	if token:
+		the_user=_users.get(token)
+	else:
+		the_user=None
+
 	if not the_user:
 		wutt=True
 		response_text="USER MISMATCH"
@@ -497,7 +519,7 @@ async def handler_post(request):
 		if job=="send_message" and post_data.get("payload"):
 			message_text=post_data.get("payload")
 			msg_target=post_data.get("msg_target")
-			message_unit=Message(detected_client,message_text,reply=msg_target)
+			message_unit=Message(token,message_text,reply=msg_target)
 			_messages.append(message_unit)
 
 		elif job=="profile_settings" and post_data.get("payload"):
