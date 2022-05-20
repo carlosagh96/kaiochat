@@ -32,12 +32,24 @@ KAIOChat
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 #msg_container,#reply_to {padding-top:8px}
+
 div.message {background-color:#DFDFDF;margin-top:8px;margin-bottom:8px;padding-left:16px;padding-right:16px;padding-bottom:2px;padding-top:2px}
-div.tools {padding-bottom:8px;padding-top:8px}
+div.tools {padding-bottom:8px;padding-top:8px;}
 div.hidden {display:none!important}
 div.show {display:block!important}
+
 p.om {background-color: #CACACC;padding:8px}
 body {margin-left:16px;margin-right:16px}
+
+button {border:none;padding:8px 16px;text-align:center;text-decoration:none;display:inline-block;font-size:16px;cursor:pointer}
+
+button {background-color:black;color:white}
+button :hover {background-color:#404040}
+button :active {background-color:gray}
+
+button.tab {float:left}
+button.tab_default {background-color:white;color:black}
+
 </style>
 </head>
 """
@@ -226,16 +238,22 @@ function show_tab(selected)
 			{
 				if (!vvv)
 				{
-					let doc_elem=document.getElementById(curr);
-					doc_elem.className=doc_elem.className.replace("hidden","show");
+					let doc_elem1=document.getElementById(curr);
+					let doc_elem2=document.getElementById("tab_"+curr);
+					doc_elem1.className=doc_elem1.className.replace("hidden","show");
+					doc_elem2.style.color="black";
+					doc_elem2.style.backgroundColor="white";
 				}
 			}
 			else
 			{
 				if (vvv)
 				{
-					let doc_elem=document.getElementById(curr);
-					doc_elem.className=doc_elem.className.replace("show","hidden");
+					let doc_elem1=document.getElementById(curr);
+					let doc_elem2=document.getElementById("tab_"+curr);
+					doc_elem1.className=doc_elem1.className.replace("show","hidden");
+					doc_elem2.style.color="white";
+					doc_elem2.style.backgroundColor="black";
 				}
 			}
 			idx=idx+1;
@@ -254,20 +272,19 @@ _html_page_default="""
 </div>
 
 <div class="tools">
-<button onclick="javascript:show_tab('send_message')">Messaging</button>
-<button onclick="javascript:show_tab('profile_settings')">Profile</button>
+<button id="tab_send_message" class="tab tab_default" onclick="javascript:show_tab('send_message')">Messaging</button>
+<button id="tab_profile_settings" class="tab" onclick="javascript:show_tab('profile_settings')">Profile</button>
 </div>
 
-<div id="send_message" class="show">
+<div id="send_message" class="show" style="clear:both;padding-top:16px">
 <p id="shipment">Send a message</p>
 <span>
 <input id="send_message_1" placeholder="Write a message here" type="text" value="" autofocus>
 <button id="send_message_btn" onclick="javascript:post_data('send_message')">Send</button>
-<!--<button onclick="javascript:send_data('send_message')">Send</button>-->
 </span>
 </div>
 
-<div id="profile_settings" class="hidden">
+<div id="profile_settings" class="hidden" style="clear:both;padding-top:16px">
 <p>Profile Settings</p>
 <span>
 <input id="profile_settings_1" placeholder="New nickname" type="text" value="">
@@ -278,25 +295,6 @@ _html_page_default="""
 <div id="msg_container">
 
 </div>
-
-<!--
-<form id="send_message" class="show" action="javascript:post_data('send_message')">
-<p>Send a message</p>
-<p><label>Message text <input id="send_message_1" placeholder="Write a message here" type="text" value="" autofocus></label></p>
-<p><label>Upload a file <input id="send_message_2" type="file"></label></p>
-<p><input type="submit" value="Send"></p>
-<p id="shipment">...</p>
-</form>
--->
-
-<!--
-<form id="profile_settings" class="hidden" action="javascript:post_data('profile_settings')">
-<p>Profile Settings</p>
-<p><label>Nickname <input id="profile_settings_1" type="text" placeholder="New nickname" value=""></label></p>
-<p><label>Picture <input id="profile_settings_2" type="file"></label></p>
-<p><input type="submit" value="Apply changes">
-</form>
--->
 """
 
 _admin_address="::1"
@@ -550,7 +548,7 @@ async def build_app():
 	app.add_routes([web.get("/",handler_get),web.post("/",handler_post),web.get("/ws",handler_ws)])
 	return app
 
-print("KAIOChat v2022-05-16\n\tWritten by カルロサグ\n\tTelegram: https://t.me/CarlosAGH\n")
+print("KAIOChat v2022-05-20\n\tWritten by カルロサグ\n\tTelegram: https://t.me/CarlosAGH\n")
 
 # Run the app
 this_loop=asyncio.get_event_loop()
