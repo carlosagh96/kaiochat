@@ -4,6 +4,8 @@
 # KAIOChat: Karurosagu's Asynchronous I/O Chat
 ################################################################################
 
+# TODO: Change how sessions are made
+
 import aiohttp
 import asyncio
 import os
@@ -44,8 +46,8 @@ body {margin-left:16px;margin-right:16px}
 button {border:none;padding:8px 16px;text-align:center;text-decoration:none;display:inline-block;font-size:16px;cursor:pointer}
 
 button {background-color:black;color:white}
-button :hover {background-color:#404040}
-button :active {background-color:gray}
+button:hover {background-color:#404040}
+button:active {background-color:gray}
 
 button.tab {float:left}
 button.tab_default {background-color:white;color:black}
