@@ -42,7 +42,8 @@ div.show {display:block!important}
 p.om {background-color: #CACACC;padding:8px}
 body {margin-left:16px;margin-right:16px}
 
-input {border: 2px solid;padding:8px 16px}
+input {border:2px solid;padding:8px 16px;width:300px}
+textarea {min-width:320px;width:100%;max-width:100%;min-height:96px;max-height:96px;font-size:16px;border: 2px solid;padding:8px 16px}
 
 button {border:2px solid black;padding:8px 16px;text-align:center;text-decoration:none;display:inline-block;cursor:pointer}
 button {background-color:black;color:white}
@@ -95,7 +96,7 @@ function from_socket(event)
 	msg_latest=event.data.slice(0,32);
 	if (html_dump.length>0)
 	{
-		msg_container=document.getElementById("msg_container")
+		msg_container=document.getElementById("msg_container");
 		if (msg_container.innerHTML==html_dump)
 		{
 			console.log("\tMessages have not changed");
@@ -118,71 +119,58 @@ async function post_data(data_job)
 {
 	data_payload=document.getElementById(data_job+"_1").value;
 	data_payload=data_payload.trim()
-	let strlim=0;
-	let wutt=false;
-	if (data_job=="send_message") {strlim=256};
-	if (data_job=="profile_settings") {strlim=32};
-	if (data_payload.length==0) {alert("This cannot be empty")};
-	if (data_payload.length>strlim)
+	let the_body="";
+	if (data_job=="send_message")
 	{
-		wutt=true;
-		alert("The name is too long");
+		the_body="job="+data_job;
+		if (msg_target.length>0)
+		{
+			the_body=the_body+"&msg_target="+msg_target;
+		}
+		the_body=the_body+"&payload="+data_payload;
+		select_message_null();
 	}
-	if (!wutt)
+	if (data_job=="profile_settings")
 	{
-		let the_body="";
+		the_body="job="+data_job+"&payload="+data_payload;
+	}
+	let response=await fetch("/",
+	{
+		method:"post",
+		headers:{"Accept":"text/plain","Content-Type":"application/x-www-form-urlencoded"},
+		body:the_body
+	});
+	if (response.ok)
+	{
 		if (data_job=="send_message")
 		{
-			the_body="job="+data_job;
-			if (msg_target.length>0)
-			{
-				the_body=the_body+"&msg_target="+msg_target;
-			}
-			the_body=the_body+"&payload="+data_payload;
-			select_message_null();
+			document.getElementById("send_message_1").value="";
+			chat_update();
 		}
 		if (data_job=="profile_settings")
 		{
-			the_body="job="+data_job+"&payload="+data_payload;
-		}
-		let response=await fetch("/",
-		{
-			method:"post",
-			headers:{"Accept":"text/plain","Content-Type":"application/x-www-form-urlencoded"},
-			body:the_body
-		});
-		if (response.ok)
-		{
-			if (data_job=="send_message")
+			let log=await response.text();
+			if (log.length>0)
 			{
-				document.getElementById("send_message_1").value="";
-				chat_update();
+				alert(log);
 			}
-			if (data_job=="profile_settings")
+			else
 			{
-				let log=await response.text();
-				if (log.length>0)
+				let oldname=document.getElementById("nickname").innerHTML;
+				document.getElementById("nickname").innerHTML=data_payload;
+				document.getElementById("profile_settings_1").value="";
+				let messages_all=document.getElementsByClassName("message");
+				let messages_num=messages_all.length;
+				let idx=0;
+				while (idx<messages_num)
 				{
-					alert(log);
-				}
-				else
-				{
-					let oldname=document.getElementById("nickname").innerHTML;
-					document.getElementById("nickname").innerHTML=data_payload;
-					document.getElementById("profile_settings_1").value="";
-					let messages_all=document.getElementsByClassName("message");
-					let messages_num=messages_all.length;
-					let idx=0;
-					while (idx<messages_num)
+					curr_msg=messages_all[idx];
+					tag_h3=curr_msg.getElementsByTagName("h3")[0];
+					if (tag_h3.innerHTML==oldname)
 					{
-						curr_msg=messages_all[idx];
-						tag_h3=curr_msg.getElementsByTagName("h3")[0];
-						if (tag_h3.innerHTML==oldname)
-						{
-							tag_h3.innerHTML=data_payload;
-						}
-						idx=idx+1;
+						tag_h3.innerHTML=data_payload;
 					}
+					idx=idx+1;
 				}
 			}
 		}
@@ -242,9 +230,7 @@ function show_tab(selected)
 					let doc_elem1=document.getElementById(curr);
 					let doc_elem2=document.getElementById("tab_"+curr);
 					doc_elem1.className=doc_elem1.className.replace("hidden","show");
-					doc_elem2.className=doc_elem2.className+" tab_now"
-					//doc_elem2.style.color="black";
-					//doc_elem2.style.backgroundColor="white";
+					doc_elem2.className=doc_elem2.className+" tab_now";
 				}
 			}
 			else
@@ -255,8 +241,6 @@ function show_tab(selected)
 					let doc_elem2=document.getElementById("tab_"+curr);
 					doc_elem1.className=doc_elem1.className.replace("show","hidden");
 					doc_elem2.className=doc_elem2.className.replace(" tab_now","");
-					//doc_elem2.style.color="white";
-					//doc_elem2.style.backgroundColor="black";
 				}
 			}
 			idx=idx+1;
@@ -276,17 +260,18 @@ _html_page_default="""
 </div>
 
 <div id="send_message" class="show" style="clear:both;padding-top:16px">
-<p id="shipment">Send a message</p>
+<p id="shipment">Send text message</p>
 <span>
-<input id="send_message_1" placeholder="Write a message here" type="text" value="" autofocus>
-<button id="send_message_btn" onclick="javascript:post_data('send_message')">Send</button>
+<textarea id="send_message_1" placeholder="Write message here" minlength="1" maxlength="256"></textarea>
+
+<p><button id="send_message_btn" onclick="javascript:post_data('send_message')">Send it</button></p>
 </span>
 </div>
 
 <div id="profile_settings" class="hidden" style="clear:both;padding-top:16px">
 <p>Profile Settings</p>
 <span>
-<input id="profile_settings_1" placeholder="New nickname" type="text" value="">
+<input id="profile_settings_1" minlength=1 maxlength=32 placeholder="New nickname" type="text" value="">
 <button id="profile_settings_btn" onclick="javascript:post_data('profile_settings')">Change</button>
 </span>
 </div>
@@ -351,7 +336,7 @@ class Message:
 
 			the_buttons=the_buttons+"<a href=#"+self.reply+"><button float=right>Go to OM</button></a>"
 
-		return "<div class=\"message\" id=\""+self.mid+"\" class=\"msg_container\"><h3>"+nick+"</h3>"+om+"<p>"+self.content+"</p><p>"+the_buttons+"</p></div>\n"
+		return "<div class=\"message\" id=\""+self.mid+"\" class=\"msg_container\"><h3>"+nick+"</h3>"+om+"<p>"+self.content.replace("\n","<br>")+"</p><div name=\"msg_actions\"><p>"+the_buttons+"</p></div></div>\n"
 
 #################################################################################
 # Handlers and app construction
