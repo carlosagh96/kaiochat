@@ -266,6 +266,11 @@ _html_page_default="""
 
 <p><button id="send_message_btn" onclick="javascript:post_data('send_message')">Send it</button></p>
 </span>
+
+<div id="msg_container">
+
+</div>
+
 </div>
 
 <div id="profile_settings" class="hidden" style="clear:both;padding-top:16px">
@@ -274,10 +279,6 @@ _html_page_default="""
 <input id="profile_settings_1" minlength=1 maxlength=32 placeholder="New nickname" type="text" value="">
 <button id="profile_settings_btn" onclick="javascript:post_data('profile_settings')">Change</button>
 </span>
-</div>
-
-<div id="msg_container">
-
 </div>
 """
 
@@ -557,7 +558,7 @@ async def build_app():
 	app.add_routes([web.get("/",handler_get),web.post("/",handler_post),web.get("/ws",handler_ws)])
 	return app
 
-print("KAIOChat v2022-05-20\n\tWritten by カルロサグ\n\tTelegram: https://t.me/CarlosAGH\n")
+print("KAIOChat v2022-05-21\n\tWritten by カルロサグ\n\tTelegram: https://t.me/CarlosAGH\n")
 
 # Run the app
 this_loop=asyncio.get_event_loop()
