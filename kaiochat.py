@@ -24,6 +24,10 @@ except:
 else:
 	_the_port=str(the_port)
 
+################################################################################
+# Frontend stuff
+################################################################################
+
 _html_page_main="""
 <title>
 KAIOChat
@@ -65,19 +69,32 @@ var sock=new WebSocket("WEBSOCKETS_URL");
 var updating=false;
 var msg_latest="";
 var msg_target="";
+var room="LAST_ROOM_VISITED";
 
-const tabs=["send_message","profile_settings"];
+const tabs=["send_message","room_config","profile_settings"];
 const tabs_len=tabs.length;
+
+//function room_set(name)
+//{
+//	if (document.getElementById("room_name").innerHTML==name)
+//	{
+//		console.log("No need to change the room")
+//	}
+//	{
+//		room=name;
+//		document.getElementById("room_name").innerHTML=name;
+//	}
+//}
 
 function chat_update(full)
 {
-	if (!updating)
+	if (!updating && room.length>0)
 	{
 		updating=true;
-		let the_data="update"
+		let the_data="update"+"&room="+room;
 		if (msg_latest.length>0)
 		{
-			the_data=the_data+"&msg_latest="+msg_latest
+			the_data=the_data+"&msg_latest="+msg_latest;
 		}
 		sock.send(the_data);
 		updating=false;
@@ -122,7 +139,7 @@ async function post_data(data_job)
 	let the_body="";
 	if (data_job=="send_message")
 	{
-		the_body="job="+data_job;
+		the_body="job="+data_job+"&room="+room;
 		if (msg_target.length>0)
 		{
 			the_body=the_body+"&msg_target="+msg_target;
@@ -232,6 +249,18 @@ function show_tab(selected)
 					doc_elem1.className=doc_elem1.className.replace("hidden","show");
 					doc_elem2.className=doc_elem2.className+" tab_now";
 				}
+				if (selected=="room_config")
+				{
+					let room_tag=document.getElementById("room_name");
+					if (room_tag.innerHTML==room)
+					{
+						console.log("No need to change the room tag")
+					}
+					else
+					{
+						room_tag.innerHTML=room;
+					}
+				}
 			}
 			else
 			{
@@ -249,17 +278,19 @@ function show_tab(selected)
 }
 
 sock.addEventListener("message",from_socket);
-window.setInterval(chat_update,1000);
+window.setInterval(chat_update,10000);
 </script>
 """
 
 _html_page_default="""
 <div class="tools">
 <button id="tab_send_message" class="tab tab_now" onclick="javascript:show_tab('send_message')">Messaging</button>
+<button id="tab_room_config" class="tab" onclick="javascript:show_tab('room_config')">Rooms</button>
 <button id="tab_profile_settings" class="tab" onclick="javascript:show_tab('profile_settings')">Profile</button>
 </div>
 
-<div id="send_message" class="show" style="clear:both;padding-top:16px">
+<!-- Messaging tab -->
+<div id="send_message" class="show" style="clear:both;padding-top:8px">
 <p id="shipment">Send text message</p>
 <span>
 <textarea id="send_message_1" placeholder="Write message here" minlength="1" maxlength="256"></textarea>
@@ -273,7 +304,14 @@ _html_page_default="""
 
 </div>
 
-<div id="profile_settings" class="hidden" style="clear:both;padding-top:16px">
+<!-- Rooms tab -->
+<div id="room_config" class="hidden" style="clear:both;padding-top:8px">
+<p>Rooms</p>
+<p>Current room: <custom id="room_name"></custom></p>
+</div>
+
+<!-- Profile settings tab -->
+<div id="profile_settings" class="hidden" style="clear:both;padding-top:8px">
 <p>Profile Settings</p>
 <span>
 <input id="profile_settings_1" minlength=1 maxlength=32 placeholder="New nickname" type="text" value="">
@@ -282,18 +320,22 @@ _html_page_default="""
 </div>
 """
 
+################################################################################
+# Backend stuff
+################################################################################
+
 def time_stamp():
 	return str(time.strftime("%Y-%m-%d-%H-%M-%S"))
 
 _admin_address="::1"
 
 _users={}
-_messages=[]
 
 class User:
 	def __init__(self,uagent,ip):
 		self.uagent=uagent
 		self.nickname="User "+time_stamp()+"-"+str(len(_users))
+		self.last_room="Master"
 
 		if ip==_admin_address:
 			self.is_admin=True
@@ -310,9 +352,10 @@ class User:
 		return "<div><h3>Hello, <customtag id=\"nickname\">"+self.nickname+"</customtag></h3></div>\n"
 
 class Message:
-	def __init__(self,owner,content,reply):
+	def __init__(self,room,owner,content,reply):
 		shit=owner+" "+time_stamp()
 		self.mid=md5(shit.encode()).hexdigest()
+		self.room=room
 		self.owner=owner
 		self.content=content
 		self.reply=reply
@@ -324,7 +367,8 @@ class Message:
 		om=""
 		the_buttons="<button onclick=\"javascript:select_message_reply('"+self.mid+"')\">Select</button> "
 		if self.reply:
-			for msg in _messages:
+			the_room=_rooms.get(self.room)
+			for msg in the_room.messages:
 				if msg.mid==self.reply:
 					us=_users.get(msg.owner)
 					nm=us.nickname
@@ -339,6 +383,37 @@ class Message:
 
 		return "<div class=\"message\" id=\""+self.mid+"\" class=\"msg_container\"><h3>"+nick+"</h3>"+om+"<p>"+self.content.replace("\n","<br>")+"</p><div name=\"msg_actions\"><p>"+the_buttons+"</p></div></div>\n"
 
+class Room:
+	def __init__(self,owner):
+		self.owner=owner
+		self.messages=[]
+
+	def msg_get(self,latest=None):
+		htmldump=""
+		if latest:
+			add_next=False
+			for msg in self.messages:
+				if not add_next:
+					if latest==msg.mid:
+						add_next=True
+				else:
+					htmldump=msg.display_html()+htmldump
+
+		if not latest:
+			for msg in self.messages:
+				htmldump=msg.display_html()+htmldump
+
+		if len(htmldump)>0:
+			htmldump=msg.mid+" "+htmldump
+
+		return htmldump
+
+	def msg_add(self,room,owner,content,reply):
+		message_unit=Message(room,owner,content,reply)
+		self.messages.append(message_unit)
+
+_rooms={"Master":Room("")}
+
 #################################################################################
 # Handlers and app construction
 #################################################################################
@@ -352,16 +427,16 @@ async def handler_ws(request):
 	print("\t→ request.url =",request.url)
 	print("\t→ asks for request.rel_url =",request.rel_url)
 
-	#token=request.headers.get("Authorization")
-	#if not token:
-	#	print("NO TOKEN?????")
-	#	return None
+	token=request.cookies.get("KAIOChat_Token")
+	if not token:
+		print("NO TOKEN?????")
+		return None
 
-	#the_user=_users.get(token)
+	the_user=_users.get(token)
 
-	#if not the_user:
-	#	print("NO USER?????")
-	#	return None
+	if not the_user:
+		print("NO USER?????")
+		return None
 
 	ws=web.WebSocketResponse()
 	await ws.prepare(request)
@@ -379,23 +454,14 @@ async def handler_ws(request):
 
 				post_data=y.query
 				# data_room=post_data.get("room")
+				# print("post_data =",post_data)
 				msg_latest=post_data.get("msg_latest")
-				if msg_latest:
-					response=""
-					add_next=False
-					for message in _messages:
-						if not add_next:
-							if msg_latest==message.mid:
-								add_next=True
-						else:
-							print(msg_latest,message.mid)
-							print(message.display_html())
-							response=message.display_html()+response
-
-				if not msg_latest:
-					response=""
-					for message in _messages:
-						response=message.display_html()+response
+				room=post_data.get("room")
+				if room:
+					the_room=_rooms.get(room)
+					if the_room:
+						response=the_room.msg_get(msg_latest)
+						the_user.last_room=room
 
 				if message and len(response)>0:
 					response=message.mid+" "+response
@@ -458,6 +524,9 @@ async def handler_get(request):
 	# USER TOKEN
 	html_scr=html_scr.replace("USER_TOKEN",token)
 
+	# ROOM NAME
+	html_scr=html_scr.replace("LAST_ROOM_VISITED",the_user.last_room)
+
 	response_text=_html_page_main+html_scr+the_user.html_nickname()+_html_page_default
 
 	print("End of GET request by",request.remote)
@@ -505,8 +574,11 @@ async def handler_post(request):
 		if job=="send_message" and post_data.get("payload"):
 			message_text=post_data.get("payload")
 			msg_target=post_data.get("msg_target")
-			message_unit=Message(token,message_text,reply=msg_target)
-			_messages.append(message_unit)
+			room=post_data.get("room")
+			if room:
+				the_room=_rooms.get(room)
+				if the_room:
+					the_room.msg_add(room,token,message_text,msg_target)
 
 		elif job=="profile_settings" and post_data.get("payload"):
 			nickname_new=post_data.get("payload")
@@ -526,21 +598,12 @@ async def handler_post(request):
 			else:
 				the_user.nickname=nickname_new
 
-		elif job=="get_messages":
-			msg_latest=post_data.get("msg_latest")
+		elif job=="create_thread" and post_data.get("thread"):
+			new=post_data.get("thread")
+			if not (new in _rooms):
+				response_text="Thread already exists"
 
-			if msg_latest:
-				add_next=False
-				for message in _messages:
-					if not add_next:
-						if msg_latest==message.mid:
-							add_next=True
-					else:
-						response_text=message.display_html()+response_text
-
-			if not msg_latest:
-				for message in _messages:
-					response_text=message.display_html()+response_text
+			
 
 		else:
 			wutt=True
