@@ -278,7 +278,7 @@ function show_tab(selected)
 }
 
 sock.addEventListener("message",from_socket);
-window.setInterval(chat_update,10000);
+window.setInterval(chat_update,1000);
 </script>
 """
 
